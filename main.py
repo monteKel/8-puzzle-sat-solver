@@ -4,9 +4,12 @@ import numpy as np
 import pandas as pd
 from pysat.solvers import Glucose4
 from random import randint
+import time
+import re
+from collections import defaultdict
+from PIL import Image
 
 ########################################################################################################################
-solver = Glucose4()
 
 def MapDictCreator(maxsteps=8,piecesNumber=9,puzzleSize=3):
     PossibleActions = ["U","D","L","R"]
@@ -55,7 +58,7 @@ def DictPrint(dict):
     for index,key in enumerate(dict):
         print(f"Coordinate: {key}",f"Literal: {index+1}")
    
-def AtLeastAtMostOnePieceByCell(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
+def AtLeastAtMostOnePieceByCell(dict,solver,maxsteps=8,piecesNumber = 9,puzzleSize=3):
     for step in range (0,maxsteps+1,1):
         for line in range (puzzleSize):
             for column in range(puzzleSize):
@@ -69,7 +72,7 @@ def AtLeastAtMostOnePieceByCell(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
                             solver.add_clause([(index * -1), (next * -1)])
     print("Second Step Done!!!\nClauses Counted:\n Has to be one piece per cell: P1 or P2 or P3 etc...\n Has to be at most one piece per cell: ~(P1 & P2) = (~P1 v ~P2) etc...\n\n")
 
-def AtLeastAtMostOnePieceByMatrix(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
+def AtLeastAtMostOnePieceByMatrix(dict,solver,maxsteps=8,piecesNumber = 9,puzzleSize=3):
     for step in range (0,maxsteps+1,1):
         for piece in range(piecesNumber):
             aux = []
@@ -83,7 +86,7 @@ def AtLeastAtMostOnePieceByMatrix(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3)
                         solver.add_clause([(index * -1), (next * -1)])
     print("Third Step Done!!!\nClauses Counted:\n Has to be one piece per Matrix: P1 or P2 or P3 etc...\n Has to be at most one piece per Matrix: P1 and ~P2 and ~P3 etc...\n\n")
             
-def AtLeastAtMostOneActionByStep(dict,maxsteps=8):
+def AtLeastAtMostOneActionByStep(dict,solver,maxsteps=8):
     for step in range(0,maxsteps,1):
         aux = [ActionValue(dict,step,"U"),ActionValue(dict,step,"D"),ActionValue(dict,step,"L"),ActionValue(dict,step,"R")]
         solver.add_clause(aux)
@@ -93,7 +96,7 @@ def AtLeastAtMostOneActionByStep(dict,maxsteps=8):
                     solver.add_clause([(index * -1), (next * -1)])
     print("Fourth Step Done!!!\nClauses Counted:\n Each Step have to make One Action: Up, Down, Left Or Right\n In the last step, no actions are made\n\n")
 
-def StateTransictionClauses(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
+def StateTransictionClauses(dict,solver,maxsteps=8,piecesNumber = 9,puzzleSize=3):
     movement = ["U","D","L","R"]
     for move in movement:
         for step in range(0,maxsteps,1):
@@ -149,7 +152,7 @@ def StateTransictionClauses(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
                         solver.add_clause(aux)
     print("Fifth Step Done!!!\nClauses Counted:\n If piece piece X is in a position and piece The Action change places with X and Empty\nIn The Next step, they will have places changed \n\n")
 
-def InertiaClauses(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
+def InertiaClauses(dict,solver,maxsteps=8,piecesNumber = 9,puzzleSize=3):
     for step in range(0,maxsteps,1):
         for column in range(puzzleSize):
             for line in range (puzzleSize):
@@ -158,7 +161,7 @@ def InertiaClauses(dict,maxsteps=8,piecesNumber = 9,puzzleSize=3):
                     solver.add_clause(aux)
     print("Sixth Step Done!!!\nClauses Counted:\n If piece X is in a position that doenst change with the step action,\nthen piece X will be in the same position on next Step\n\n")
                         
-def CreateFinalTable(dict,maxstep=8):
+def CreateFinalTable(dict,solver,maxstep=8):
     matrix = np.zeros((3,3))
     piece = 0
     for line in range(3):
@@ -170,7 +173,7 @@ def CreateFinalTable(dict,maxstep=8):
     print("The Final Matrix has to looks like this:\n")
     print(matrix)
 
-def CreateInitialState(dict,aux):
+def CreateInitialState(dict,solver,aux):
     number = PossibilityValue(dict,0,0,0,aux[0])
     solver.add_clause([number])
     number = PossibilityValue(dict,0,0,1,aux[1])
@@ -190,85 +193,68 @@ def CreateInitialState(dict,aux):
     number = PossibilityValue(dict,0,2,2,aux[8])
     solver.add_clause([number])
 
-def CreateStepMatrix(dict,stringfysoluction,maxsteps=8,piecesNumber=9):
-    step= -1
-    Soluction=False
-    SoluctionList=[0,1,2,3,4,5,6,7,8]
-    st.write("")
-    st.write("")
-    for index in range(len(stringfysoluction)):
-        action = stringfysoluction[index][2]
-        if Soluction == False:
-            if action == "A":
-                aux=[]
-                step+=1
-                st.write("\nStep Number {}".format(step))
-                if stringfysoluction[index][4] == "U":
-                    st.write("Action that matrix will make: Upwards")
-                elif stringfysoluction[index][4] == "D":
-                    st.write("Action that matrix will make: Downwards")
-                elif stringfysoluction[index][4] == "L":
-                    st.write("Action that matrix will make: Leftwards")
-                else:
-                    st.write("Action that matrix will make: Rightwards")
-            else:
-                aux.append(int(stringfysoluction[index][8]))
-                if len(aux) >= 9:
-                    if aux == SoluctionList:
-                        st.write("Were finally in the last step, or if you wanna say, the final matrix :D\n")
-                        current_df_for_display = pd.DataFrame({" ":[aux[0],aux[3],aux[6]],"  ":[aux[1],aux[4],aux[7]],"   ":[aux[2],aux[5],aux[8]]})
-                        styled_html = current_df_for_display.style \
-                        .hide(axis="index") \
-                        .hide(axis="columns") \
-                        .set_table_styles([
-                            {'selector': '', 'props': [
-                                ('border-collapse', 'collapse'),
-                                ('width', 'auto !important'),
-                                ('margin-left', 'auto'),
-                                ('margin-right', 'auto'),
-                                ('font-size', '2.5em'),
-                                ('text-align', 'center')
-                            ]},
-                            {'selector': 'td', 'props': [
-                                ('border', '2px solid #6C757D'),
-                                ('padding', '10px'),
-                                ('width', '70px'),
-                                ('height', '70px')
-                            ]},
-                            {'selector': 'td:empty', 'props': [
-                                ('background-color', '#444444')
-                            ]}
-                        ]) \
-                        .to_html()
-                        st.markdown(styled_html, unsafe_allow_html=True)
-                        Soluction = True
-                    else:
-                        current_df_for_display = pd.DataFrame({" ":[aux[0],aux[3],aux[6]],"  ":[aux[1],aux[4],aux[7]],"   ":[aux[2],aux[5],aux[8]]})
-                        styled_html = current_df_for_display.style \
-                        .hide(axis="index") \
-                        .hide(axis="columns") \
-                        .set_table_styles([
-                            {'selector': '', 'props': [
-                                ('border-collapse', 'collapse'),
-                                ('width', 'auto !important'),
-                                ('margin-left', 'auto'),
-                                ('margin-right', 'auto'),
-                                ('font-size', '2.5em'),
-                                ('text-align', 'center')
-                            ]},
-                            {'selector': 'td', 'props': [
-                                ('border', '2px solid #6C757D'),
-                                ('padding', '10px'),
-                                ('width', '70px'),
-                                ('height', '70px')
-                            ]},
-                            {'selector': 'td:empty', 'props': [
-                                ('background-color', '#444444')
-                            ]}
-                        ]) \
-                        .to_html()
-                        st.markdown(styled_html, unsafe_allow_html=True)
-                        aux=[]
+def CreateStepMatrix(stringfysoluction):
+    step_placeholder = st.empty()
+    matrix_placeholder = st.empty()
+
+    step_states = defaultdict(lambda: [[-1 for _ in range(3)] for _ in range(3)])
+    actions = {}
+
+    for literal in stringfysoluction:
+        if "_A_" in literal:
+            match = re.match(r"(\d+)_A_([UDLR])", literal)
+            if match:
+                step = int(match.group(1))
+                direction = match.group(2)
+                actions[step] = direction
+        elif "_P_" in literal:
+            match = re.match(r"(\d+)_P_(\d)_(\d)_(\d+)", literal)
+            if match:
+                step, i, j, piece = map(int, match.groups())
+                step_states[step][i][j] = piece
+
+    for step in sorted(step_states.keys()):
+        matrix = step_states[step]
+        direction = actions.get(step, None)
+
+        if direction:
+            dir_text = {"U": "↑ (Up)", "D": "↓ (Down)", "L": "← (Left)", "R": "→ (Right)"}.get(direction, direction)
+            step_placeholder.markdown(f"### Passo {step}: {dir_text}")
+        else:
+            step_placeholder.markdown(f"### Passo {step}")
+
+        df = pd.DataFrame(matrix)
+        styled_html = df.style \
+            .hide(axis="index") \
+            .hide(axis="columns") \
+            .set_table_styles([
+                {'selector': '', 'props': [
+                    ('border-collapse', 'collapse'),
+                    ('width', 'auto !important'),
+                    ('margin-left', 'auto'),
+                    ('margin-right', 'auto'),
+                    ('font-size', '2.5em'),
+                    ('text-align', 'center')
+                ]},
+                {'selector': 'td', 'props': [
+                    ('border', '2px solid #6C757D'),
+                    ('padding', '10px'),
+                    ('width', '70px'),
+                    ('height', '70px')
+                ]},
+                {'selector': 'td:empty', 'props': [
+                    ('background-color', '#444444')
+                ]}
+            ]) \
+            .to_html()
+        matrix_placeholder.markdown(styled_html, unsafe_allow_html=True)
+        time.sleep(0.9)
+
+        # Checar se é a solução final
+        if matrix == [[0,1,2],[3,4,5],[6,7,8]]:
+            step_placeholder.markdown(f"### Solução final alcançada no passo {step}!")
+            break
+
 
 def GenerateRandomMatrix():
         matrix = np.zeros((3,3),dtype=int)
@@ -279,7 +265,7 @@ def GenerateRandomMatrix():
             for column in range(3):
                 matrix[line][column] = piece
                 piece+=1
-        for QttMovements in range(20):
+        for QttMovements in range(100):
             Movement = randint(0,3)
             if Movement == 0 and LineEmpty >= 1:
                 aux = matrix[LineEmpty-1][ColumnEmpty]
@@ -305,6 +291,26 @@ def GenerateRandomMatrix():
         st.session_state.ValidMatrix = True
         return pd.DataFrame(st.session_state.PuzzleMatrix)
 
+def RunSolver(matrix_input, max_limit=20):
+    from pysat.solvers import Glucose4
+
+    for steps in range(1, max_limit + 1):
+        solver = Glucose4()
+        MapDict = MapDictCreator(steps)
+        AtLeastAtMostOnePieceByCell(MapDict,solver, steps)
+        AtLeastAtMostOnePieceByMatrix(MapDict,solver, steps)
+        AtLeastAtMostOneActionByStep(MapDict,solver, steps)
+        StateTransictionClauses(MapDict,solver, steps)
+        InertiaClauses(MapDict,solver, steps)
+        CreateFinalTable(MapDict,solver, steps)
+        CreateInitialState(MapDict,solver, matrix_input)
+
+        if solver.solve():
+            raw_solution = solver.get_model()
+            string_solution = sorted(LiteralIndex(MapDict, x) for x in raw_solution if x > 0)
+            return string_solution, steps, MapDict, raw_solution
+    return None, None, None
+
 if 'ValidMatrix' not in st.session_state:
     st.session_state.ValidMatrix = False
 if 'PuzzleMatrix' not in st.session_state:
@@ -313,15 +319,8 @@ if 'PuzzleMatrix' not in st.session_state:
         [3, 4, 5],
         [6, 7, 8]
     ], dtype=int)
-MaxSteps = 8
-MapDict = MapDictCreator(MaxSteps)
-AtLeastAtMostOnePieceByCell(MapDict,MaxSteps)
-AtLeastAtMostOnePieceByMatrix(MapDict,MaxSteps)
-AtLeastAtMostOneActionByStep(MapDict,MaxSteps)
-StateTransictionClauses(MapDict,MaxSteps)
-InertiaClauses(MapDict,MaxSteps)
-CreateFinalTable(MapDict,MaxSteps)
 
+numberSteps = 20
 
 
 
@@ -345,7 +344,8 @@ cssPath = pathlib.Path("/LPCAssignment/style.css")
 with center:
     st.title("8-Puzzle Solver",)
     st.subheader("with pysat glucose solver")
-    EmptySize(3)
+    EmptySize(2)
+    EmptySize(2)
 
 
     for line in range(3):
@@ -384,16 +384,16 @@ with center:
                 ('width', 'auto !important'),
                 ('margin-left', 'auto'),
                 ('margin-right', 'auto'),
-                ('font-size', '2.5em'), # Ajuste o tamanho da fonte para a exibição
+                ('font-size', '2.5em'),
                 ('text-align', 'center')
             ]},
             {'selector': 'td', 'props': [
-                ('border', '2px solid #6C757D'), # Borda para as células
+                ('border', '2px solid #6C757D'),
                 ('padding', '10px'),
-                ('width', '70px'), # Largura/Altura da célula da tabela HTML
+                ('width', '70px'),
                 ('height', '70px')
             ]},
-            {'selector': 'td:empty', 'props': [ # Estilo para a célula vazia (0)
+            {'selector': 'td:empty', 'props': [
                 ('background-color', '#444444')
             ]}
         ]) \
@@ -401,7 +401,7 @@ with center:
     st.markdown(styled_html, unsafe_allow_html=True)
 
 
-    if st.button("Solve This Matrix"):
+    if st.button("Resolver Matriz"):
         st.session_state.ValidMatrix = True
         with center:
             aux=[]
@@ -412,35 +412,49 @@ with center:
             for i in range(len(aux)):
                 for j in range(len(aux)):
                     if i != j and aux[i] == aux[j] and st.session_state.ValidMatrix:
-                        st.write("This matrix cant be done: Equal Indexes")
+                        st.write("Indices iguais :(")
                         st.session_state.ValidMatrix = not st.session_state.ValidMatrix
             if st.session_state.ValidMatrix:
-                CreateInitialState(MapDict,aux)
-                st.write("This is a valid matrix :)")
-                if solver.solve():
-                    st.write("Searching soluction with:")
-                    st.write("Default steps quantity: 8 Steps")
-                    rawSoluction = solver.get_model()
-                    StringfySoluction = []
-                    for index in range(len(rawSoluction)):
-                        if rawSoluction[index] > 0:
-                            StringfySoluction.append(LiteralIndex(MapDict,rawSoluction[index]))
-                    StringfySoluction.sort()
-                    CreateStepMatrix(dict,StringfySoluction,MaxSteps)
+                solution, steps, MapDict, rawSoluction = RunSolver(aux,numberSteps)
+                st.write("Matriz Válida!! :)")
+                if solution:
+                    st.success(f"Solução encontrada com {steps} passo(s)!")
+                    CreateStepMatrix(solution)
                 else:
-                    st.write("Error 404: Soluction Not Found")
-                    st.write("Generating a new random Matrix")
-                    dt = GenerateRandomMatrix()
-
+                    pass
+            else:
+                st.write("Error 404: Soluction Not Found")
+                st.write("Generating a new random Matrix")
+                dt = GenerateRandomMatrix()
 
 with right:
-    EmptySize(22)
+    EmptySize(16)
+    st.write("Envie uma imagem para resolver o puzzle de forma mais divertida :D")
+    uploaded_file = st.file_uploader("", type=["png", "jpg", "jpeg"])
+    tiles_img = None
+
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        width, height = image.size
+        new_width = (width // 3) * 3
+        new_height = (height // 3) * 3
+        image = image.resize((new_width, new_height))
+
+        tile_w, tile_h = new_width // 3, new_height // 3
+
+        tiles_img = {}
+
+        for row in range(3):
+            for col in range(3):
+                left = col * tile_w
+                upper = row * tile_h
+                right = left + tile_w
+                lower = upper + tile_h
+                tile = image.crop((left, upper, right, lower))
+                idx = row * 3 + col
+                tiles_img[idx] = tile
 
 with left:
     EmptySize(22)
-    if st.button("Randomize Matrix"):
+    if st.button("Randomizar Matriz"):
         dt = GenerateRandomMatrix()
-    st.write("If you randomize")
-    st.write("please click on a index")
-    st.write("erase and press enter")
-    st.write("im tryin to fix this soon :)")
